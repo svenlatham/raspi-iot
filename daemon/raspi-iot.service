@@ -1,0 +1,14 @@
+[Unit]
+Description=IOT Management
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/php /home/pi/raspi-iot/daemon/daemon.php
+WorkingDirectory=/home/pi/raspi-iot/daemon/
+StandardOutput=inherit
+StandardError=inherit
+Restart=always
+User=pi
+
+[Install]
+WantedBy=multi-user.target

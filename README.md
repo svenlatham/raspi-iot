@@ -11,3 +11,11 @@ This project aims to achieve:
 * Ease of use
 
 It is a standardisation/consolidation of projects I have been developing for 5+ years in a variety of IoT contextx.
+
+# Prerequisities
+
+The software is based on latest (Buster) version of Raspbian at https://www.raspberrypi.org/downloads/raspbian/
+Lite is recommended to save on bloat; we'll install what we need to separately:
+Other versions might work, but there are no guarantees.
+
+sudo apt-get -y install php nmcli
