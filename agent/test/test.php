@@ -24,6 +24,10 @@ class TestService extends GenericService {
         $this->log("Process is stopping");
 
     }
+
+    function getConfigDefault() {
+        return array("countLimit" => 8);
+    }
 }
 
 

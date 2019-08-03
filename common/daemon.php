@@ -8,6 +8,12 @@ abstract class GenericService
 {
     var $status = null;
     var $runAutomatic = true;
+    var $config = null;
+
+    function __construct() {
+        $this->config = $this->readConfig();
+    }
+
     public abstract function start();
     public abstract function stop();
 
@@ -54,6 +60,37 @@ abstract class GenericService
         // Call me when the process stops 'naturally' (i.e. completed its task)
         // Prevents the automatic script from continuing; 
         $this->runAutomatic = false;
+    }
+    
+    public function getConfigFile() {
+        $file = sprintf("../../state/config-%s.json", get_class($this));
+        return $file;
+    }
+
+    protected function getConfigDefault() {
+        return array();
+    }
+
+    public function readConfig() {
+        // Read config from the local system
+        $configFile = $this->getConfigFile();
+        $this->config = $this->getConfigDefault();
+        if (file_exists($configFile)) {
+            $data = file_get_contents($configFile);
+            $json = json_decode($data, true);
+            $this->config = array_merge($this->config, $json);
+        } else {
+            $this->writeConfig();
+        }
+    }
+
+    public function writeConfig() {
+        // Sync our configuration
+        $data = json_encode($this->config);
+        @mkdir("../../state/", 0777, true);
+        $fp = fopen($this->getConfigFile(), 'w');
+        fputs($fp, $data);
+        fclose($fp);
     }
 }
 
