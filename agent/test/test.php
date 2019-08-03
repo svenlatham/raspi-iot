@@ -1,4 +1,9 @@
+#!/usr/bin/php
 <?php
+
+chdir(__DIR__);
+chdir('../');
+
 require_once('../common/daemon.php');
 
 class TestService extends GenericService {

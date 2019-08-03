@@ -4,7 +4,7 @@ After=network.target
 
 [Service]
 ExecStart=/usr/bin/php /home/pi/raspi-iot/daemon/daemon.php
-WorkingDirectory=/home/pi/raspi-iot/daemon/
+WorkingDirectory=/home/pi/raspi-iot/
 StandardOutput=inherit
 StandardError=inherit
 Restart=always
