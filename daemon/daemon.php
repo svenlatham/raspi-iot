@@ -107,6 +107,7 @@ class IotDaemon
         $out = array();
         $out['jobs'] = array();
         $out['jobs'][] = new IotJob("TestService", 1);
+        $out['jobs'][] = new IotJob("AccessPointService", 5);
         return $out;
     }
 
