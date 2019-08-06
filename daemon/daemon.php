@@ -2,27 +2,35 @@
 
 # Placeholder!
 
-class IotJob
+class IotTask
 {
     var $class;
     var $duration; // in minutes
 
     static function parse($row)
     {
-        $job = new IotJob();
-        $job->class = $row['class'];
-        $job->duration = $row['duration'];
-        return $job;
+        if (is_object($row) && get_class($row) == 'IotTask') { return $row; }
+        $task = new IotTask();
+        $task->class = $row['class'];
+        $task->duration = $row['duration'];
+        return $task;
+    }
+
+    static function create($class, $duration) {
+        $out = new IotTask();
+        $out->class = $class;
+        $out->duration = $duration;
+        return $out;
     }
 }
 
-class IotProcess
+class IotWorkUnit
 {
-    var $job;
+    var $task;
     var $start;
     var $expiry;
     var $log;
-    var $pipe;
+    var $process;
 
     public function start()
     {
@@ -30,7 +38,7 @@ class IotProcess
         if (preg_match("/^([a-zA-Z0-9\_]+)Service$/", $this->job->class, $matches)) {
             $prefix = strtolower($matches[1]);
             $file = sprintf("agent/%s/%s.php", $prefix, $prefix);
-            $this->pipe = popen($file, 'w');
+            $this->process = popen($file, 'w');
         } else {
             throw new Exception("Class not available");
         }
@@ -38,7 +46,7 @@ class IotProcess
 
     public function stop()
     {
-        pclose($this->pipe);
+        pclose($this->process);
     }
 }
 
@@ -47,7 +55,7 @@ class IotDaemon
     public const CONFIGFILE = "../state/raspi-iot.json";
     public const CONFIGDEFAULT = "daemon/raspi-iot-default.json";
     public $config = null;
-    public $pipes = array();
+    public $workers = array();
 
     public function __construct()
     {
@@ -59,44 +67,57 @@ class IotDaemon
         printf("* %s\n", $msg);
     }
 
-    public function getJob($pipe)
+    public function getTask($pipe)
     {
-        $row = array_shift($this->config['jobs']);
-        array_push($this->config['jobs'], $row);
-        $job = IotJob::parse($row);
-        return $job;
+        if ($this->config === null) { throw new Exception("Config has not been defined"); }
+        if (count($this->config['tasks']) == 0) {
+            return null;
+        }
+        $row = array_shift($this->config['tasks']);
+        array_push($this->config['tasks'], $row);
+        $task = IotTask::parse($row);
+        return $task;
     }
 
     public function start()
     {
         // Beep bop
         $this->log("Starting daemon");
-        $pipe = 'wlan1';
-        $pipes[$pipe] = null;
+
+        // We need to start a series of workers, one for each channel
+
+        // Temporary: eventually we'll negotiate each channel separately.
+        $channel = 'wlan1';
+
+        $this->workers[$channel] = null;
         while (true) {
             sleep(1);
             $this->log('tick');
-            if ($pipes[$pipe] === null) {
-                // Start a new process
-                $this->log("Starting new process");
-                $job = $this->getJob($pipe);
-                var_dump($job);
-                if (!$job) {
-                    throw new Exception("Could not retrieve a job");
-                }
-                $proc = new IotProcess();
-                $proc->job = $job;
-                $proc->start = time();
-                $proc->expiry = time() + 60 * $job->duration;
-                $proc->log = '';
-                $pipes[$pipe] = $proc;
-                $proc->start();
-            } else {
-                $proc = $pipes[$pipe];
-                if ($proc->expiry < time()) {
-                    $this->log("Goodnight");
-                    $proc->stop();
-                    $pipes[$pipe] = null;
+            foreach(array_keys($this->workers) as $channel) {
+                $this->log(sprintf("Checking %s", $channel));
+                if ($this->workers[$channel] === null) {
+                    // Start a new process
+                    $this->log("Starting new process");
+                    $task = $this->getTask($channel);
+                    if (!$task) {
+                        throw new Exception("Could not retrieve a job");
+                    }
+                    $proc = new IotWorkUnit();
+                    $proc->job = $task;
+                    $proc->start = time();
+                    $proc->expiry = time() + 60 * $task->duration;
+                    $proc->log = '';
+                    $this->workers[$channel] = $proc;
+                    $proc->start();
+                } else {
+                    $proc = $this->workers[$channel];
+                    if ($proc->expiry < time()) {
+                        $this->log("Goodnight");
+                        $proc->stop();
+                        $this->workers[$channel] = null;
+                    } else {
+                        $this->log("Process is still running");
+                    }
                 }
             }
         }
@@ -105,9 +126,9 @@ class IotDaemon
     public function getConfigDefault()
     {
         $out = array();
-        $out['jobs'] = array();
-        $out['jobs'][] = new IotJob("TestService", 1);
-        $out['jobs'][] = new IotJob("AccessPointService", 5);
+        $out['tasks'] = array();
+        $out['tasks'][] = IotTask::create("TestService", 1);
+        $out['tasks'][] = IotTask::create("AccessPointService", 5);
         return $out;
     }
 
