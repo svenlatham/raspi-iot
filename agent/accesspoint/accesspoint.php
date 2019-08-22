@@ -12,7 +12,10 @@ class AccessPointService extends GenericService {
 
 
     function start() {
+        $device = 'wlan0';
         $this->log("Automatic process start");
+        $cmd = sprintf('sudo nmcli dev wifi hotspot ifname %s ssid tester password "Wyruid7isdh"', $device);
+        system($cmd);
         $this->startAutomatic();
     }
 
@@ -27,7 +30,8 @@ class AccessPointService extends GenericService {
     function stop() {
         // Typically triggered by sigs
         $this->log("Process is stopping");
-
+        $cmd = sprintf("sudo nmcli dev disconnect %s", $device);
+        system($cmd);
     }
 
     function getConfigDefault() {

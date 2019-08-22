@@ -9,9 +9,11 @@ abstract class GenericService
     var $status = null;
     var $runAutomatic = true;
     var $config = null;
+    var $channel = null;
 
     function __construct() {
         $this->config = $this->readConfig();
+        $this->channel = argv(1);
     }
 
     public abstract function start();
