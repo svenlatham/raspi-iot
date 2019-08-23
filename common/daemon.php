@@ -23,7 +23,7 @@ abstract class GenericService
     }
 
     protected function log($msg) {
-        printf("* %s\n", $msg);
+        //printf("[%s] %s\n", date('c'), $msg);
     }
 
     protected function tick() { }
@@ -42,6 +42,7 @@ abstract class GenericService
                 case SIGINT:
                 case SIGHUP:
                     $this->stopAutomatic();
+                    return;
                     break;
             }
             // Nowt else supported yet...
@@ -60,6 +61,7 @@ abstract class GenericService
         // Call me when the process stops 'naturally' (i.e. completed its task)
         // Prevents the automatic script from continuing; 
         $this->runAutomatic = false;
+        exit();
     }
     
     public function getConfigFile() {
@@ -98,17 +100,14 @@ $service = null;
 function upstand($servicename) {
     global $service;
     // Instantiate the given service:
-    printf("Upstand complete\n");
     $service = new $servicename();
     $service->start();
-    printf("Upstand finished\n");
     // When we get here the service has stopped
     exit();
 }
 
 if (!function_exists("pcntl_async_signals")) { echo "PHP 7.1+ needed"; exit(); }
 pcntl_async_signals(true);
-printf("Standing up\n");
 
 
 function signal_handler($signo)
@@ -119,4 +118,3 @@ function signal_handler($signo)
 pcntl_signal(SIGINT,  "signal_handler");
 pcntl_signal(SIGTERM, "signal_handler");
 pcntl_signal(SIGHUP,  "signal_handler");
-printf("Registered signal handlers\n");
