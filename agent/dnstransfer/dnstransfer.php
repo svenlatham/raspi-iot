@@ -16,9 +16,9 @@ class DnsService extends GenericService {
         
         // Where we're going, we don't need tick()...
         $descriptors = array(1 => array('pipe', 'w'));
-        $proc = proc_open("/usr/bin/nmcli device wifi rescan ifname wlan0", $descriptors, $pipes);
+        $proc = proc_open("sudo /usr/bin/nmcli device wifi list ifname wlan0", $descriptors, $pipes);
         $data = stream_get_contents($pipes[1]);
-        //printf($data);
+        printf($data);
         proc_close($proc);
         $ssids = $this->findOpenWireless($data);
         var_dump($ssids);
@@ -37,7 +37,9 @@ class DnsService extends GenericService {
             proc_close($proc);
 
             // Let's try poking the DNS bear:
-
+            $hostname = "test123.connectivity.latham-it.net";
+            $resolver = dns_get_record($hostname);
+            var_dump($resolver);
 
             // Get rid of the connection profile (automatically created):
             $descriptors = array(1 => array('pipe', 'w'));
@@ -67,6 +69,8 @@ class DnsService extends GenericService {
             $breaker--; if ($breaker==0) { throw new Exception("Got stuck in endless loop"); }
         }
         $lines = explode("\n", $input);
+        var_dump($lines);
+
         $ssids = array();
         foreach($lines as $line) {
             $row = explode(' ', $line);
