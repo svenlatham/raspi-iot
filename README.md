@@ -18,4 +18,5 @@ The software is based on latest (Buster) version of Raspbian at https://www.rasp
 Lite is recommended to save on bloat; we'll install what we need to separately:
 Other versions might work, but there are no guarantees.
 
-sudo apt-get -y install php nmcli
+sudo apt-get -y install php-cli network-manager tcpdump
+sudo apt -y purge openresolv dhcpcd5
