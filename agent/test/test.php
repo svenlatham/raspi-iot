@@ -12,13 +12,13 @@ class TestService extends GenericService {
 
 
     function start() {
-        $this->log("Automatic process start");
+        $this->log("TestService: Automatic process start");
         $this->startAutomatic();
     }
 
     function tick() {
         // By using tick, all looping and signal handling is done automatically:
-        printf("It's %s\n", date('c'));
+        $this->log("TICK");
         $this->sleep(1);
         $this->counter++;
         if ($this->counter > 5) { $this->stopAutomatic(); }
@@ -26,7 +26,7 @@ class TestService extends GenericService {
 
     function stop() {
         // Typically triggered by sigs
-        $this->log("Process is stopping");
+        $this->log("TestService: Process is stopping");
 
     }
 

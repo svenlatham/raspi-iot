@@ -37,16 +37,41 @@ class IotWorkUnit
         // Start process in a new fork
         if (preg_match("/^([a-zA-Z0-9\_]+)Service$/", $this->job->class, $matches)) {
             $prefix = strtolower($matches[1]);
-            $file = sprintf("agent/%s/%s.php", $prefix, $prefix);
-            $this->process = popen($file, 'w');
+            $file = sprintf("/bin/sh ./run.sh");
+            $cwd = sprintf("agent/%s/", $prefix);
+            $pipes = array(); // We're not using this yet
+            $this->process = proc_open($file, array(), $pipes, $cwd);
         } else {
             throw new Exception("Class not available");
         }
     }
 
+    public function isRunning() {
+        $stats = proc_get_status($this->process);
+        return !!$stats['running'];
+        /*array(8) {
+            ["command"]=>
+            string(19) "agent/test/test.php"
+            ["pid"]=>
+            int(21469)
+            ["running"]=>
+            bool(true)
+            ["signaled"]=>
+            bool(false)
+            ["stopped"]=>
+            bool(false)
+            ["exitcode"]=>
+            int(-1)
+            ["termsig"]=>
+            int(0)
+            ["stopsig"]=>
+            int(0)
+        }*/
+    }
+
     public function stop()
     {
-        pclose($this->process);
+        proc_close($this->process);
     }
 }
 
@@ -64,7 +89,7 @@ class IotDaemon
 
     public function log($msg)
     {
-        printf("* %s\n", $msg);
+        printf("[%s] %s\n", date('c'), $msg);
     }
 
     public function getTask($pipe)
@@ -92,12 +117,10 @@ class IotDaemon
         $this->workers[$channel] = null;
         while (true) {
             sleep(1);
-            $this->log('tick');
             foreach(array_keys($this->workers) as $channel) {
-                $this->log(sprintf("Checking %s", $channel));
                 if ($this->workers[$channel] === null) {
                     // Start a new process
-                    $this->log("Starting new process");
+                    $this->log(sprintf("%s: Starting new process", $channel));
                     $task = $this->getTask($channel);
                     if (!$task) {
                         throw new Exception("Could not retrieve a job");
@@ -105,18 +128,25 @@ class IotDaemon
                     $proc = new IotWorkUnit();
                     $proc->job = $task;
                     $proc->start = time();
-                    $proc->expiry = time() + 60 * $task->duration;
+                    $proc->expiry = time() + 10 * $task->duration;
                     $proc->log = '';
                     $this->workers[$channel] = $proc;
                     $proc->start();
                 } else {
                     $proc = $this->workers[$channel];
-                    if ($proc->expiry < time()) {
-                        $this->log("Goodnight");
-                        $proc->stop();
-                        $this->workers[$channel] = null;
+
+                    if ($proc->isRunning()) {
+                        if ($proc->expiry < time()) {
+                            $this->log(sprintf("%s: Current unit of work %s has expired and will be forcibly stopped", $channel, $proc->job->class));
+                            $proc->stop();
+                            $this->workers[$channel] = null;
+                        } else {
+                            $this->log(sprintf("%s: Process %s is still running", $channel, $proc->job->class));
+                        }
                     } else {
-                        $this->log("Process is still running");
+                        $this->log(sprintf("%s: Process %s has been removed", $channel, $proc->job->class));
+                        $proc = null;
+                        $this->workers[$channel] = null;
                     }
                 }
             }
