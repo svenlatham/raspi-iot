@@ -11,26 +11,36 @@ abstract class GenericService
     var $config = null;
     var $channel = null;
 
-    function __construct() {
+    function __construct()
+    {
         $this->config = $this->readConfig();
-        $this->channel = argv(1);
+        $cmdline = getopt('p:');
+        if ($cmdline && array_key_exists('p', $cmdline)) {
+            $this->channel = $cmdline['p'];
+        } else {
+            $this->channel = null;
+        }
     }
 
     public abstract function start();
     public abstract function stop();
 
-    public function setSignal($signo) {
+    public function setSignal($signo)
+    {
         $this->log(sprintf("Signal received: %s", $signo));
         $this->status = $signo;
     }
 
-    protected function log($msg) {
-        //printf("[%s] %s\n", date('c'), $msg);
+    protected function log($msg)
+    {
+        printf("[%s] %s\n", date('c'), $msg);
     }
 
-    protected function tick() { }
+    protected function tick()
+    { }
 
-    protected function startAutomatic() {
+    protected function startAutomatic()
+    {
         // Internal loop facility
         while (true) {
             if (!$this->runAutomatic) {
@@ -38,7 +48,9 @@ abstract class GenericService
                 return;
             }
             $this->tick();
-            if ($this->status === null) { continue; }
+            if ($this->status === null) {
+                continue;
+            }
             switch ($this->status) {
                 case SIGTERM:
                 case SIGINT:
@@ -51,7 +63,8 @@ abstract class GenericService
         }
     }
 
-    protected function sleep($seconds) {
+    protected function sleep($seconds)
+    {
         // Can't use standard sleep as that will capture signals directly...
         $expiry = microtime(true) + $seconds;
         while (microtime(true) < $expiry) {
@@ -59,23 +72,27 @@ abstract class GenericService
         }
     }
 
-    protected function stopAutomatic() {
+    protected function stopAutomatic()
+    {
         // Call me when the process stops 'naturally' (i.e. completed its task)
         // Prevents the automatic script from continuing; 
         $this->runAutomatic = false;
         exit();
     }
-    
-    public function getConfigFile() {
+
+    public function getConfigFile()
+    {
         $file = sprintf("../../state/config-%s.json", get_class($this));
         return $file;
     }
 
-    protected function getConfigDefault() {
+    protected function getConfigDefault()
+    {
         return array();
     }
 
-    public function readConfig() {
+    public function readConfig()
+    {
         // Read config from the local system
         $configFile = $this->getConfigFile();
         $this->config = $this->getConfigDefault();
@@ -88,7 +105,8 @@ abstract class GenericService
         }
     }
 
-    public function writeConfig() {
+    public function writeConfig()
+    {
         // Sync our configuration
         $data = json_encode($this->config);
         @mkdir("../../state/", 0777, true);
@@ -99,7 +117,8 @@ abstract class GenericService
 }
 
 $service = null;
-function upstand($servicename) {
+function upstand($servicename)
+{
     global $service;
     // Instantiate the given service:
     $service = new $servicename();
@@ -108,7 +127,10 @@ function upstand($servicename) {
     exit();
 }
 
-if (!function_exists("pcntl_async_signals")) { echo "PHP 7.1+ needed"; exit(); }
+if (!function_exists("pcntl_async_signals")) {
+    echo "PHP 7.1+ needed";
+    exit();
+}
 pcntl_async_signals(true);
 
 
