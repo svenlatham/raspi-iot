@@ -21,7 +21,6 @@ class DnsService extends GenericService {
         printf($data);
         proc_close($proc);
         $ssids = $this->findOpenWireless($data);
-        var_dump($ssids);
         if (count($ssids) == 0) {
             echo "Nothing to connect to\n";
             exit();
@@ -36,10 +35,24 @@ class DnsService extends GenericService {
             $data = stream_get_contents($pipes[1]); // Wait for this to unblock
             proc_close($proc);
 
-            // Let's try poking the DNS bear:
-            $hostname = "test123.connectivity.latham-it.net";
-            $resolver = dns_get_record($hostname);
-            var_dump($resolver);
+            foreach($this->queue->items as $item) {
+                $channel = $item->channel;
+                $payload = $item->payload;
+                $deviceid = getDeviceId();
+                $timestamp = date('Ymd');
+                $signature = 'xxxxx';
+                //$item has channel, payload
+                // Let's try poking the DNS bear:
+                for($i=0;$i<=5;$i++) {
+                    echo $i;
+                    $hostname = sprintf("c%d-%s-%s-%s-%s.connectivity.latham-it.net", $channel, $deviceid, $payload, $timestamp, $signature);
+                    $resolver = @dns_get_record($hostname);
+                    if ($resolver != false) {
+                        var_dump($resolver);
+                    }
+                    sleep(2);
+                }
+            }
 
             // Get rid of the connection profile (automatically created):
             $descriptors = array(1 => array('pipe', 'w'));
