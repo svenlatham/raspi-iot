@@ -1,3 +1,4 @@
+#!/usr/bin/php
 <?php
 chdir(__DIR__.'/../../');
 require_once('common/agent-common.php');
@@ -11,7 +12,7 @@ class TestService extends GenericService {
         $data = file_get_contents("php://stdin");
         $this->log($data);
         $test = json_decode($data);
-        if (!$test) {
+        if ($test === null) {
             $this->log("Nothing I can use from STDIN");
             exit();
         }

@@ -1,3 +1,4 @@
+#!/usr/bin/php
 <?php
 chdir(__DIR__.'/../../');
 require_once('common/agent-common.php');
@@ -14,15 +15,18 @@ class AccessPointService extends GenericService {
     function start() {
         $device = 'wlan1';
         $this->log("Automatic process start");
+        $this->startProcess();
+        $this->startAutomatic();
+    }
+
+    function startProcess() {
+        $this->log("Starting tcpdump process");
         $this->pipes = array();
         $descriptor = array(0 => array("pipe", "r"), 1 => array("pipe", "w"), 2 => array("file", "php://stderr", "a"));
         $cmd = sprintf("/usr/bin/sudo /usr/sbin/tcpdump -l -I -i wlan1 -e -s 256 type mgt subtype probe-req");
-
         $this->tcpproc = proc_open($cmd, $descriptor, $this->pipes);
         stream_set_blocking($this->pipes[1], false);
-        //stream_set_blocking($this->pipes[2], false);
         $this->startTime = microtime(true);
-        $this->startAutomatic();
     }
 
     function parseLine($line) {
@@ -73,9 +77,13 @@ class AccessPointService extends GenericService {
             // We need this as a per-hour count (note, lower precision can cause its own issues)
             $cph = round(3600 * ($counter / $diff));
             // Feed this back on stdout
-            $out = json_encode(array('cph' => $cph));
-            echo json_encode($out);
+            $out = json_encode(array('channel' => 1, 'payload' => $cph, 'expiry' => getSystemUptime() + 3600 ));
+            echo $out;
         }
+        sleep(2);
+        exec("sudo ifconfig wlan1 down");
+        exec("sudo iwconfig wlan1 mode managed");
+        exec("sudo ifconfig wlan1 up");
         exit();
     }
 

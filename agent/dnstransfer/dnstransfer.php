@@ -1,3 +1,4 @@
+#!/usr/bin/php
 <?php
 chdir(__DIR__.'/../../');
 require_once('common/agent-common.php');
@@ -7,15 +8,18 @@ class DnsService extends GenericService {
     function start() {
         // We'll be wanting messages to send. These come in on stdin:
         $data = file_get_contents("php://stdin");
-        $this->log($data);
+        $this->log(sprintf("We've got %s", $data));
         $this->queue = json_decode($data);
         if (!$this->queue) {
             $this->log("Nothing I can use from STDIN");
             exit();
         }
-        
+        sleep(5); // Quick breather
         // Where we're going, we don't need tick()...
         $descriptors = array(1 => array('pipe', 'w'));
+        $this->log("Rescanning device");
+        exec("sudo /usr/bin/nmcli device wifi rescan ifname wlan1");
+        $this->log("assessing landscape");
         $proc = proc_open("sudo /usr/bin/nmcli device wifi list ifname wlan1", $descriptors, $pipes);
         $data = stream_get_contents($pipes[1]);
         printf($data);
@@ -27,15 +31,17 @@ class DnsService extends GenericService {
         }
         // Try connecting to each in turn:
         foreach($ssids as $ssid) {
-            if (!preg_match("/^[A-Za-z0-9\-\_\.]+$/", $ssid)) { continue; }
+            if (!preg_match("/^[A-Za-z0-9\-\_\.]+$/", $ssid)) {
+                $this->log(sprintf("Invalid SSID %s", $ssid));
+                continue;
+            }
+            $this->log(sprintf("Attempting to connect to SSID %s", $ssid));
             $descriptors = array(1 => array('pipe', 'w'));
             $cmd = sprintf("sudo /usr/bin/nmcli device wifi connect %s ifname wlan1", $ssid);
             // Avoid system/exec as we might want more enhanced debugging
-            $proc = proc_open($cmd, $descriptors, $pipes);
-            $data = stream_get_contents($pipes[1]); // Wait for this to unblock
-            proc_close($proc);
+            exec($cmd);
 
-            foreach($this->queue->items as $item) {
+            foreach($this->queue as $item) {
                 $channel = $item->channel;
                 $payload = $item->payload;
                 $deviceid = getDeviceId();
@@ -89,6 +95,7 @@ class DnsService extends GenericService {
         foreach($lines as $line) {
             $row = explode(' ', $line);
             if (count($row) < 9) { continue; }
+            $this->log(sprintf("Found SSID %s", $row[1]));
             if ($row[2] != 'Infra') { continue; }
             if ($row[8] != '--') { continue; }
             $ssids[] = $row[1];

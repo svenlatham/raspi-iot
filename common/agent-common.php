@@ -34,7 +34,7 @@ abstract class GenericService
 
     protected function log($msg)
     {
-        fwrite(STDERR, sprintf("[%s] %s\n", getSystemUptime(), $msg));
+        fwrite(STDERR, sprintf("[%s] %s %s\n", getSystemUptime(), posix_getpid(), $msg));
     }
 
     protected function tick()
@@ -77,8 +77,9 @@ abstract class GenericService
     {
         // Call me when the process stops 'naturally' (i.e. completed its task)
         // Prevents the automatic script from continuing; 
+        $this->log("Automatic stop");
         $this->runAutomatic = false;
-        exit();
+        $this->stop();
     }
 
     public function getConfigFile()
@@ -126,19 +127,16 @@ function upstand($servicename)
     $service->start();
 }
 
-
-
-
-
 function signal_handler($signo)
 {
     global $service;
     if ($service) {
-        $service->stop();
+        $service->setSignal($signo);
+    } else {
+        exit();
     }
 }
 pcntl_async_signals(true);
-
 
 pcntl_signal(SIGINT,  "signal_handler");
 pcntl_signal(SIGTERM, "signal_handler");

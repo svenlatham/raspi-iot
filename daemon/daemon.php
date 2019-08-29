@@ -1,6 +1,6 @@
 <?php
 chdir(__DIR__.'/../');
-require_once 'common/agent-common.php';
+require_once 'common/common.php';
 
 class IotTask
 {
@@ -40,12 +40,14 @@ class IotWorkUnit
         // Start process in a new fork
         if (preg_match("/^([a-zA-Z0-9\_]+)Service$/", $this->job->class, $matches)) {
             $prefix = strtolower($matches[1]);
-            $file = sprintf("/usr/bin/php %s.php", $prefix);
+            $file = sprintf("exec /usr/bin/php %s.php", $prefix);
             $cwd = sprintf("agent/%s/", $prefix);
             $descriptors = array(0 => array('pipe', 'r'), 1 => array('pipe','w'), 2 => array('file','php://stderr','a'));
+            
             $this->process = proc_open($file, $descriptors, $this->pipes, $cwd);
             fwrite($this->pipes[0], json_encode($data));
             fclose($this->pipes[0]);
+
             stream_set_blocking($this->pipes[1], false);
             $stats = proc_get_status($this->process);
             $this->pid = $stats['pid'];
@@ -61,21 +63,24 @@ class IotWorkUnit
 
     public function log($msg)
     {
-        fwrite(STDERR, sprintf("[%s] %s\n", getSystemUptime(), $msg));
+        fwrite(STDERR, sprintf("[%s] %s %s\n", getSystemUptime(), posix_getpid(), $msg));
     }
 
     public function stop()
     {
-        $this->log("Stopping process");
+        $this->log(sprintf("Stopping child process %s with SIGINT", $this->pid));
         // Read whatever we got from STDOUT (which may or may not be useable)
-        posix_kill($this->pid, SIGTERM); // Be nice about it
+        posix_kill($this->pid, SIGINT); // Be nice about it
         for ($i=0; $i<=5; $i++) {
             if (!$this->isRunning()) { break; }
             sleep(1);
         }
+        $this->log("Getting response from ended process");
         $this->response = stream_get_contents($this->pipes[1]);
         fclose($this->pipes[1]);
+        $this->log("Closing process");
         proc_close($this->process);
+        $this->log("Process closed");
     }
 }
 
@@ -85,6 +90,7 @@ class IotDaemon
     public const CONFIGDEFAULT = "daemon/raspi-iot-default.json";
     public $config = null;
     public $workers = array();
+    public $queue = array();
 
     public function __construct()
     {
@@ -93,7 +99,7 @@ class IotDaemon
 
     public function log($msg)
     {
-        fwrite(STDERR, sprintf("[%s] %s\n", getSystemUptime(), $msg));
+        fwrite(STDERR, sprintf("[%s] %s daemon - %s\n", getSystemUptime(), posix_getpid(), $msg));
     }
 
     public function getTask($pipe)
@@ -121,6 +127,13 @@ class IotDaemon
         $this->workers[$channel] = null;
         while (true) {
             sleep(1);
+            // Delete anything in the queue that has expired
+            $now = getSystemUptime();
+            $this->queue = array_filter($this->queue, function($item) use ($now) {     
+                return !!$item && $item->expiry > $now;
+            });
+
+
             foreach(array_keys($this->workers) as $channel) {
                 if ($this->workers[$channel] === null) {
                     // Start a new process
@@ -135,7 +148,7 @@ class IotDaemon
                     $proc->expiry = getSystemUptime() + 10 * $task->duration;
                     $proc->log = '';
                     $this->workers[$channel] = $proc;
-                    $proc->start("hi");
+                    $proc->start($this->queue);
                 } else {
                     $proc = $this->workers[$channel];
                     if ($proc->isRunning()) {
@@ -143,6 +156,8 @@ class IotDaemon
                             $this->log(sprintf("%s: Current unit of work %s has expired and will be forcibly stopped", $channel, $proc->job->class));
                             $proc->stop();
                             $this->log(sprintf("Got reply %s", $proc->response));
+                            $data = json_decode($proc->response);
+                            if ($data) { $this->queue[] = $data; }
                             $this->workers[$channel] = null;
                         } else {
                             $this->log(sprintf("%s: Process %s is still running; expiry %d", $channel, $proc->job->class, $proc->expiry));
@@ -151,6 +166,8 @@ class IotDaemon
                         if ($proc->expiry < getSystemUptime()) {
                             $this->log(sprintf("%s: Process %s has been removed", $channel, $proc->job->class));
                             $this->log(sprintf("Got reply %s", $proc->response));
+                            $data = json_decode($proc->response);
+                            if ($data) { $this->queue[] = $data; }
                             $proc = null;
                             $this->workers[$channel] = null;
                         } else {
