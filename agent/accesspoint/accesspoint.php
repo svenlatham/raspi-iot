@@ -16,14 +16,15 @@ class AccessPointService extends GenericService {
 
 
     function start() {
-        $device = 'wlan0';
+        $device = 'wlan1';
         $this->log("Automatic process start");
         $this->pipes = array();
-        $descriptor = array(0 => array("pipe", "r"), 1 => array("pipe", "w"), 2 => array("pipe", "r"));
-        $cmd = sprintf("/usr/bin/sudo /usr/sbin/tcpdump -l -I -i wlan0 -e -s 256 type mgt subtype probe-req");
+        $descriptor = array(0 => array("pipe", "r"), 1 => array("pipe", "w"), 2 => array("file", "php://stderr", "a"));
+        $cmd = sprintf("/usr/bin/sudo /usr/sbin/tcpdump -l -I -i wlan1 -e -s 256 type mgt subtype probe-req");
 
         $this->tcpproc = proc_open($cmd, $descriptor, $this->pipes);
         stream_set_blocking($this->pipes[1], false);
+        //stream_set_blocking($this->pipes[2], false);
         $this->startTime = microtime(true);
         $this->startAutomatic();
     }

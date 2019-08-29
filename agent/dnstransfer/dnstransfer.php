@@ -16,7 +16,7 @@ class DnsService extends GenericService {
         
         // Where we're going, we don't need tick()...
         $descriptors = array(1 => array('pipe', 'w'));
-        $proc = proc_open("sudo /usr/bin/nmcli device wifi list ifname wlan0", $descriptors, $pipes);
+        $proc = proc_open("sudo /usr/bin/nmcli device wifi list ifname wlan1", $descriptors, $pipes);
         $data = stream_get_contents($pipes[1]);
         printf($data);
         proc_close($proc);
@@ -29,7 +29,7 @@ class DnsService extends GenericService {
         foreach($ssids as $ssid) {
             if (!preg_match("/^[A-Za-z0-9\-\_\.]+$/", $ssid)) { continue; }
             $descriptors = array(1 => array('pipe', 'w'));
-            $cmd = sprintf("sudo /usr/bin/nmcli device wifi connect %s ifname wlan0", $ssid);
+            $cmd = sprintf("sudo /usr/bin/nmcli device wifi connect %s ifname wlan1", $ssid);
             // Avoid system/exec as we might want more enhanced debugging
             $proc = proc_open($cmd, $descriptors, $pipes);
             $data = stream_get_contents($pipes[1]); // Wait for this to unblock

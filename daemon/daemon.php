@@ -41,6 +41,7 @@ class IotWorkUnit
     var $process;
     var $pipes;
     var $response = null;
+    var $pid;
 
     public function start($data=null)
     {
@@ -49,12 +50,13 @@ class IotWorkUnit
             $prefix = strtolower($matches[1]);
             $file = sprintf("/bin/sh ./run.sh");
             $cwd = sprintf("agent/%s/", $prefix);
-            $descriptors = array(0 => array('pipe', 'r'), 1 => array('pipe','w'), 2 => array('pipe', 'w'));
+            $descriptors = array(0 => array('pipe', 'r'), 1 => array('pipe','w'), 2 => array('file','php://stderr','a'));
             $this->process = proc_open($file, $descriptors, $this->pipes, $cwd);
             fwrite($this->pipes[0], $data);
             fclose($this->pipes[0]);
             stream_set_blocking($this->pipes[1], false);
-            stream_set_blocking($this->pipes[2], false);
+            $stats = proc_get_status($this->process);
+            $this->pid = $stats['pid'];
         } else {
             throw new Exception("Class not available");
         }
@@ -83,12 +85,22 @@ class IotWorkUnit
         }*/
     }
 
+    public function log($msg)
+    {
+        fwrite(STDERR, sprintf("%s\n", $msg));
+    }
+
     public function stop()
     {
+        $this->log("Stopping process");
         // Read whatever we got from STDOUT (which may or may not be useable)
+        posix_kill($this->pid, SIGTERM); // Be nice about it
+        for ($i=0; $i<=5; $i++) {
+            if (!$this->isRunning()) { break; }
+            sleep(1);
+        }
         $this->response = stream_get_contents($this->pipes[1]);
         fclose($this->pipes[1]);
-      
         proc_close($this->process);
     }
 }
@@ -107,7 +119,7 @@ class IotDaemon
 
     public function log($msg)
     {
-        printf("[%s] %s\n", getSystemUptime(), $msg);
+        fwrite(STDERR, sprintf("[%s] %s\n", getSystemUptime(), $msg));
     }
 
     public function getTask($pipe)
@@ -152,7 +164,6 @@ class IotDaemon
                     $proc->start();
                 } else {
                     $proc = $this->workers[$channel];
-                    echo stream_get_contents($proc->pipes[2]);
                     if ($proc->isRunning()) {
                         if ($proc->expiry < getSystemUptime()) {
                             $this->log(sprintf("%s: Current unit of work %s has expired and will be forcibly stopped", $channel, $proc->job->class));
@@ -160,7 +171,7 @@ class IotDaemon
                             $this->log(sprintf("Got reply %s", $proc->response));
                             $this->workers[$channel] = null;
                         } else {
-                            $this->log(sprintf("%s: Process %s is still running", $channel, $proc->job->class));
+                            $this->log(sprintf("%s: Process %s is still running; expiry %d", $channel, $proc->job->class, $proc->expiry));
                         }
                     } else {
                         if ($proc->expiry < getSystemUptime()) {
