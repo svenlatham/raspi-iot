@@ -188,13 +188,13 @@ class IotDaemon
     public function readConfig()
     {
         // Read config from the local system
-        if (file_exists(self::CONFIGFILE)) {
+        /*if (file_exists(self::CONFIGFILE)) {
             $data = file_get_contents(self::CONFIGFILE);
             $this->config = json_decode($data, true);
-        } else {
+        } else {*/
             $this->config = $this->getConfigDefault();
             $this->writeConfig();
-        }
+        //}
     }
 
     public function writeConfig()
