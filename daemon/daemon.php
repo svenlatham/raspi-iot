@@ -61,7 +61,7 @@ class IotWorkUnit
 
     public function log($msg)
     {
-        fwrite(STDERR, sprintf("%s\n", $msg));
+        fwrite(STDERR, sprintf("[%s] %s\n", getSystemUptime(), $msg));
     }
 
     public function stop()

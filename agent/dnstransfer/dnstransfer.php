@@ -105,14 +105,15 @@ class DnsService extends GenericService {
         $this->log("Closing down safely");
         $end = microtime(true);
         $diff = $end - $this->startTime;
+        $out = null;
         if ($diff != 0) {
             $counter = count(array_keys($this->macs));
             // We need this as a per-hour count (note, lower precision can cause its own issues)
             $cph = round(3600 * ($counter / $diff));
             // Feed this back on stdout
             $out = json_encode(array('cph' => $cph));
-            echo json_encode($out);
         }
+        echo json_encode($out);
         exit();
     }
 

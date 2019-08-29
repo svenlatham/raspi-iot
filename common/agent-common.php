@@ -34,7 +34,7 @@ abstract class GenericService
 
     protected function log($msg)
     {
-        fwrite(STDERR, sprintf("[%s] %s\n", date('c'), $msg));
+        fwrite(STDERR, sprintf("[%s] %s\n", getSystemUptime(), $msg));
     }
 
     protected function tick()
@@ -124,8 +124,6 @@ function upstand($servicename)
     // Instantiate the given service:
     $service = new $servicename();
     $service->start();
-    // When we get here the service has stopped
-    exit();
 }
 
 
@@ -135,7 +133,9 @@ function upstand($servicename)
 function signal_handler($signo)
 {
     global $service;
-    $service->setSignal($signo);
+    if ($service) {
+        $service->stop();
+    }
 }
 pcntl_async_signals(true);
 
