@@ -49,10 +49,12 @@ class IotWorkUnit
             $prefix = strtolower($matches[1]);
             $file = sprintf("/bin/sh ./run.sh");
             $cwd = sprintf("agent/%s/", $prefix);
-            $descriptors = array(0 => array('pipe', 'r'), 1 => array('pipe','w'));
+            $descriptors = array(0 => array('pipe', 'r'), 1 => array('pipe','w'), 2 => array('pipe', 'w'));
             $this->process = proc_open($file, $descriptors, $this->pipes, $cwd);
             fwrite($this->pipes[0], $data);
             fclose($this->pipes[0]);
+            stream_set_blocking($this->pipes[1], false);
+            stream_set_blocking($this->pipes[2], false);
         } else {
             throw new Exception("Class not available");
         }
@@ -150,7 +152,7 @@ class IotDaemon
                     $proc->start();
                 } else {
                     $proc = $this->workers[$channel];
-
+                    echo stream_get_contents($proc->pipes[2]);
                     if ($proc->isRunning()) {
                         if ($proc->expiry < getSystemUptime()) {
                             $this->log(sprintf("%s: Current unit of work %s has expired and will be forcibly stopped", $channel, $proc->job->class));
