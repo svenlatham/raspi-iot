@@ -33,7 +33,7 @@ abstract class GenericService
 
     protected function log($msg)
     {
-        printf("[%s] %s\n", date('c'), $msg);
+        //printf("[%s] %s\n", date('c'), $msg);
     }
 
     protected function tick()
@@ -147,7 +147,7 @@ function getDeviceId() {
     }
     return trim($serial);
   }
-  
+
 
 
 function signal_handler($signo)
