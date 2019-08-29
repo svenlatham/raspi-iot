@@ -2,6 +2,14 @@
 
 # Placeholder!
 
+
+
+function getSystemUptime() {
+    $data = file_get_contents("/proc/uptime");
+    list($secs, $idle) = explode(' ', $data);
+    return $secs;
+}
+
 class IotTask
 {
     var $class;
@@ -31,16 +39,20 @@ class IotWorkUnit
     var $expiry;
     var $log;
     var $process;
+    var $pipes;
+    var $response = null;
 
-    public function start()
+    public function start($data=null)
     {
         // Start process in a new fork
         if (preg_match("/^([a-zA-Z0-9\_]+)Service$/", $this->job->class, $matches)) {
             $prefix = strtolower($matches[1]);
             $file = sprintf("/bin/sh ./run.sh");
             $cwd = sprintf("agent/%s/", $prefix);
-            $pipes = array(); // We're not using this yet
-            $this->process = proc_open($file, array(), $pipes, $cwd);
+            $descriptors = array(0 => array('pipe', 'r'), 1 => array('pipe','w'));
+            $this->process = proc_open($file, $descriptors, $this->pipes, $cwd);
+            fwrite($this->pipes[0], $data);
+            fclose($this->pipes[0]);
         } else {
             throw new Exception("Class not available");
         }
@@ -71,6 +83,10 @@ class IotWorkUnit
 
     public function stop()
     {
+        // Read whatever we got from STDOUT (which may or may not be useable)
+        $this->response = stream_get_contents($this->pipes[1]);
+        fclose($this->pipes[1]);
+      
         proc_close($this->process);
     }
 }
@@ -89,7 +105,7 @@ class IotDaemon
 
     public function log($msg)
     {
-        printf("[%s] %s\n", date('c'), $msg);
+        printf("[%s] %s\n", getSystemUptime(), $msg);
     }
 
     public function getTask($pipe)
@@ -127,8 +143,8 @@ class IotDaemon
                     }
                     $proc = new IotWorkUnit();
                     $proc->job = $task;
-                    $proc->start = time();
-                    $proc->expiry = time() + 10 * $task->duration;
+                    $proc->start = getSystemUptime();
+                    $proc->expiry = getSystemUptime() + 10 * $task->duration;
                     $proc->log = '';
                     $this->workers[$channel] = $proc;
                     $proc->start();
@@ -136,17 +152,23 @@ class IotDaemon
                     $proc = $this->workers[$channel];
 
                     if ($proc->isRunning()) {
-                        if ($proc->expiry < time()) {
+                        if ($proc->expiry < getSystemUptime()) {
                             $this->log(sprintf("%s: Current unit of work %s has expired and will be forcibly stopped", $channel, $proc->job->class));
                             $proc->stop();
+                            $this->log(sprintf("Got reply %s", $proc->response));
                             $this->workers[$channel] = null;
                         } else {
                             $this->log(sprintf("%s: Process %s is still running", $channel, $proc->job->class));
                         }
                     } else {
-                        $this->log(sprintf("%s: Process %s has been removed", $channel, $proc->job->class));
-                        $proc = null;
-                        //$this->workers[$channel] = null; // We don't want them to disappear
+                        if ($proc->expiry < getSystemUptime()) {
+                            $this->log(sprintf("%s: Process %s has been removed", $channel, $proc->job->class));
+                            $this->log(sprintf("Got reply %s", $proc->response));
+                            $proc = null;
+                            $this->workers[$channel] = null;
+                        } else {
+                            $this->log(sprintf("%s: Process %s has stopped; cleanup scheduled for %d", $channel, $proc->job->class, $proc->expiry));
+                        }
                     }
                 }
             }
@@ -158,7 +180,8 @@ class IotDaemon
         $out = array();
         $out['tasks'] = array();
         $out['tasks'][] = IotTask::create("TestService", 1);
-        $out['tasks'][] = IotTask::create("AccessPointService", 5);
+        $out['tasks'][] = IotTask::create("AccessPointService", 1);
+        $out['tasks'][] = IotTask::create("DnsTransferService", 1);
         return $out;
     }
 
