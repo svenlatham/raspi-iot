@@ -146,7 +146,7 @@ class IotDaemon
                     } else {
                         $this->log(sprintf("%s: Process %s has been removed", $channel, $proc->job->class));
                         $proc = null;
-                        $this->workers[$channel] = null;
+                        //$this->workers[$channel] = null; // We don't want them to disappear
                     }
                 }
             }
