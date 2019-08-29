@@ -4,7 +4,7 @@
 chdir(__DIR__);
 chdir('../');
 
-require_once('../common/daemon.php');
+require_once('../common/agent-common.php');
 
 class DnsService extends GenericService {
     var $queue;
