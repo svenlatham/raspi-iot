@@ -48,11 +48,11 @@ class IotWorkUnit
         // Start process in a new fork
         if (preg_match("/^([a-zA-Z0-9\_]+)Service$/", $this->job->class, $matches)) {
             $prefix = strtolower($matches[1]);
-            $file = sprintf("/bin/sh ./run.sh");
+            $file = sprintf("/usr/bin/php %s.php");
             $cwd = sprintf("agent/%s/", $prefix);
             $descriptors = array(0 => array('pipe', 'r'), 1 => array('pipe','w'), 2 => array('file','php://stderr','a'));
             $this->process = proc_open($file, $descriptors, $this->pipes, $cwd);
-            fwrite($this->pipes[0], $data);
+            fwrite($this->pipes[0], json_encode($data));
             fclose($this->pipes[0]);
             stream_set_blocking($this->pipes[1], false);
             $stats = proc_get_status($this->process);
@@ -65,24 +65,6 @@ class IotWorkUnit
     public function isRunning() {
         $stats = proc_get_status($this->process);
         return !!$stats['running'];
-        /*array(8) {
-            ["command"]=>
-            string(19) "agent/test/test.php"
-            ["pid"]=>
-            int(21469)
-            ["running"]=>
-            bool(true)
-            ["signaled"]=>
-            bool(false)
-            ["stopped"]=>
-            bool(false)
-            ["exitcode"]=>
-            int(-1)
-            ["termsig"]=>
-            int(0)
-            ["stopsig"]=>
-            int(0)
-        }*/
     }
 
     public function log($msg)
@@ -161,7 +143,7 @@ class IotDaemon
                     $proc->expiry = getSystemUptime() + 10 * $task->duration;
                     $proc->log = '';
                     $this->workers[$channel] = $proc;
-                    $proc->start();
+                    $proc->start("hi");
                 } else {
                     $proc = $this->workers[$channel];
                     if ($proc->isRunning()) {

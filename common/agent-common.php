@@ -33,7 +33,7 @@ abstract class GenericService
 
     protected function log($msg)
     {
-        //printf("[%s] %s\n", date('c'), $msg);
+        fwrite(STDERR, sprintf("[%s] %s\n", date('c'), $msg));
     }
 
     protected function tick()
@@ -131,7 +131,6 @@ if (!function_exists("pcntl_async_signals")) {
     echo "PHP 7.1+ needed";
     exit();
 }
-pcntl_async_signals(true);
 
 function getDeviceId() {
     // Raspberry Pi
@@ -155,6 +154,9 @@ function signal_handler($signo)
     global $service;
     $service->setSignal($signo);
 }
+pcntl_async_signals(true);
+
+
 pcntl_signal(SIGINT,  "signal_handler");
 pcntl_signal(SIGTERM, "signal_handler");
 pcntl_signal(SIGHUP,  "signal_handler");

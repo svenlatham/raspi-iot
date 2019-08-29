@@ -12,6 +12,13 @@ class TestService extends GenericService {
 
 
     function start() {
+        $data = file_get_contents("php://stdin");
+        $this->log($data);
+        $test = json_decode($data);
+        if (!$test) {
+            $this->log("Nothing I can use from STDIN");
+            exit();
+        }
         $this->log("TestService: Automatic process start");
         $this->startAutomatic();
     }
