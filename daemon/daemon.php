@@ -1,14 +1,6 @@
 <?php
-
-# Placeholder!
-
-
-
-function getSystemUptime() {
-    $data = file_get_contents("/proc/uptime");
-    list($secs, $idle) = explode(' ', $data);
-    return $secs;
-}
+chdir(__DIR__.'/../');
+require_once 'common/agent-common.php';
 
 class IotTask
 {
@@ -48,7 +40,7 @@ class IotWorkUnit
         // Start process in a new fork
         if (preg_match("/^([a-zA-Z0-9\_]+)Service$/", $this->job->class, $matches)) {
             $prefix = strtolower($matches[1]);
-            $file = sprintf("/usr/bin/php %s.php");
+            $file = sprintf("/usr/bin/php %s.php", $prefix);
             $cwd = sprintf("agent/%s/", $prefix);
             $descriptors = array(0 => array('pipe', 'r'), 1 => array('pipe','w'), 2 => array('file','php://stderr','a'));
             $this->process = proc_open($file, $descriptors, $this->pipes, $cwd);
