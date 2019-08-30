@@ -15,3 +15,5 @@ sudo cp /home/pi/raspi-iot/src/daemon/raspi-iot.service /etc/systemd/system/rasp
 sudo systemctl enable raspi-iot.service
 sudo systemctl start raspi-iot.service
 
+# reboot - needed because of networking changes
+sudo reboot

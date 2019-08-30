@@ -25,10 +25,7 @@ class TestService extends GenericService {
 
     function tick() {
         // By using tick, all looping and signal handling is done automatically:
-        $this->log("TICK");
         $this->sleep(1);
-        $this->counter++;
-        if ($this->counter > 5) { $this->stopAutomatic(); }
     }
 
     function stop() {
