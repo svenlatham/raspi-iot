@@ -184,7 +184,7 @@ class IotDaemon
         $out = array();
         $out['tasks'] = array();
         $out['tasks'][] = IotTask::create("TestService", 1);
-        $out['tasks'][] = IotTask::create("AccessPointService", 1);
+        $out['tasks'][] = IotTask::create("AccessPointService", 2);
         $out['tasks'][] = IotTask::create("DnsTransferService", 1);
         return $out;
     }

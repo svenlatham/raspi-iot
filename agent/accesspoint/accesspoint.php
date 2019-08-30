@@ -10,7 +10,7 @@ class AccessPointService extends GenericService {
     var $startTime;
 
     var $macs = array(); // Number of unique macs found
-
+    var $totalTime = 0;
 
     function start() {
         $device = 'wlan1';
@@ -63,19 +63,25 @@ class AccessPointService extends GenericService {
         $status = proc_get_status($this->tcpproc);
         if (!$status['running']) {
             $this->log("Sub-process has ended");
-            $this->stop();
+            $this->startProcess();
         }
+    }
+
+    function collectData() {
+        $end = microtime(true);
+        $diff = $end - $this->startTime;
+        $this->totalTime += $diff;
     }
 
     function stop() {
         // Typically triggered by sigs
         $this->log("Closing down safely");
-        $end = microtime(true);
-        $diff = $end - $this->startTime;
-        if ($diff != 0) {
+        $this->collectData();
+        
+        if ($this->totalTime != 0) {
             $counter = count(array_keys($this->macs));
             // We need this as a per-hour count (note, lower precision can cause its own issues)
-            $cph = round(3600 * ($counter / $diff));
+            $cph = round(3600 * ($counter / $this->totalTime));
             // Feed this back on stdout
             $out = json_encode(array('channel' => 1, 'payload' => $cph, 'expiry' => getSystemUptime() + 3600 ));
             echo $out;

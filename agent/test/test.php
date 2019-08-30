@@ -16,6 +16,9 @@ class TestService extends GenericService {
             $this->log("Nothing I can use from STDIN");
             exit();
         }
+        $psk = md5(mt_rand(0,999999).getSystemUptime()); // Not too cryptic for now. Will expand later.
+        $cmd = sprintf("sudo nmcli dev wifi hotspot ifname wlan1 con-name devtest ssid %s password \"%s\"", getDeviceId(), $psk);
+        exec($cmd);
         $this->log("TestService: Automatic process start");
         $this->startAutomatic();
     }
@@ -31,6 +34,8 @@ class TestService extends GenericService {
     function stop() {
         // Typically triggered by sigs
         $this->log("TestService: Process is stopping");
+        $cmd = sprintf("sudo nmcli connection delete devtest");
+        exec($cmd);
 
     }
 
