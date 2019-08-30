@@ -145,7 +145,7 @@ class IotDaemon
                     $proc = new IotWorkUnit();
                     $proc->job = $task;
                     $proc->start = getSystemUptime();
-                    $proc->expiry = getSystemUptime() + 10 * $task->duration;
+                    $proc->expiry = getSystemUptime() + 60 * $task->duration;
                     $proc->log = '';
                     $this->workers[$channel] = $proc;
                     $proc->start($this->queue);
@@ -183,9 +183,10 @@ class IotDaemon
     {
         $out = array();
         $out['tasks'] = array();
-        $out['tasks'][] = IotTask::create("TestService", 1);
-        $out['tasks'][] = IotTask::create("AccessPointService", 2);
-        $out['tasks'][] = IotTask::create("DnsTransferService", 1);
+        // Should total one hour. Yes, we will get drift but it should be minimised:
+        $out['tasks'][] = IotTask::create("TestService", 5);
+        $out['tasks'][] = IotTask::create("AccessPointService", 50);
+        $out['tasks'][] = IotTask::create("DnsTransferService", 5);
         return $out;
     }
 
