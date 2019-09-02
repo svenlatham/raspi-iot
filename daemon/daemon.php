@@ -117,7 +117,8 @@ class IotDaemon
     public function start()
     {
         // Beep bop
-        $this->log("Starting daemon");
+        $this->log("Starting daemon. 30 second sleep first...");
+        sleep(30);
 
         // We need to start a series of workers, one for each channel
 
