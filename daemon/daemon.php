@@ -1,6 +1,6 @@
 <?php
-
-# Placeholder!
+chdir(__DIR__.'/../');
+require_once 'common/common.php';
 
 class IotTask
 {
@@ -31,16 +31,26 @@ class IotWorkUnit
     var $expiry;
     var $log;
     var $process;
+    var $pipes;
+    var $response = null;
+    var $pid;
 
-    public function start()
+    public function start($data=null)
     {
         // Start process in a new fork
         if (preg_match("/^([a-zA-Z0-9\_]+)Service$/", $this->job->class, $matches)) {
             $prefix = strtolower($matches[1]);
-            $file = sprintf("/bin/sh ./run.sh");
+            $file = sprintf("exec /usr/bin/php %s.php", $prefix);
             $cwd = sprintf("agent/%s/", $prefix);
-            $pipes = array(); // We're not using this yet
-            $this->process = proc_open($file, array(), $pipes, $cwd);
+            $descriptors = array(0 => array('pipe', 'r'), 1 => array('pipe','w'), 2 => array('file','php://stderr','a'));
+            
+            $this->process = proc_open($file, $descriptors, $this->pipes, $cwd);
+            fwrite($this->pipes[0], json_encode($data));
+            fclose($this->pipes[0]);
+
+            stream_set_blocking($this->pipes[1], false);
+            $stats = proc_get_status($this->process);
+            $this->pid = $stats['pid'];
         } else {
             throw new Exception("Class not available");
         }
@@ -49,29 +59,28 @@ class IotWorkUnit
     public function isRunning() {
         $stats = proc_get_status($this->process);
         return !!$stats['running'];
-        /*array(8) {
-            ["command"]=>
-            string(19) "agent/test/test.php"
-            ["pid"]=>
-            int(21469)
-            ["running"]=>
-            bool(true)
-            ["signaled"]=>
-            bool(false)
-            ["stopped"]=>
-            bool(false)
-            ["exitcode"]=>
-            int(-1)
-            ["termsig"]=>
-            int(0)
-            ["stopsig"]=>
-            int(0)
-        }*/
+    }
+
+    public function log($msg)
+    {
+        fwrite(STDERR, sprintf("[%s] %s %s\n", getSystemUptime(), posix_getpid(), $msg));
     }
 
     public function stop()
     {
+        $this->log(sprintf("Stopping child process %s with SIGINT", $this->pid));
+        // Read whatever we got from STDOUT (which may or may not be useable)
+        posix_kill($this->pid, SIGINT); // Be nice about it
+        for ($i=0; $i<=5; $i++) {
+            if (!$this->isRunning()) { break; }
+            sleep(1);
+        }
+        $this->log("Getting response from ended process");
+        $this->response = stream_get_contents($this->pipes[1]);
+        fclose($this->pipes[1]);
+        $this->log("Closing process");
         proc_close($this->process);
+        $this->log("Process closed");
     }
 }
 
@@ -81,6 +90,7 @@ class IotDaemon
     public const CONFIGDEFAULT = "daemon/raspi-iot-default.json";
     public $config = null;
     public $workers = array();
+    public $queue = array();
 
     public function __construct()
     {
@@ -89,7 +99,7 @@ class IotDaemon
 
     public function log($msg)
     {
-        printf("[%s] %s\n", date('c'), $msg);
+        fwrite(STDERR, sprintf("[%s] %s daemon - %s\n", getSystemUptime(), posix_getpid(), $msg));
     }
 
     public function getTask($pipe)
@@ -107,7 +117,8 @@ class IotDaemon
     public function start()
     {
         // Beep bop
-        $this->log("Starting daemon");
+        $this->log("Starting daemon. 30 second sleep first...");
+        sleep(30);
 
         // We need to start a series of workers, one for each channel
 
@@ -117,6 +128,13 @@ class IotDaemon
         $this->workers[$channel] = null;
         while (true) {
             sleep(1);
+            // Delete anything in the queue that has expired
+            $now = getSystemUptime();
+            $this->queue = array_filter($this->queue, function($item) use ($now) {     
+                return !!$item && $item->expiry > $now;
+            });
+
+
             foreach(array_keys($this->workers) as $channel) {
                 if ($this->workers[$channel] === null) {
                     // Start a new process
@@ -127,26 +145,35 @@ class IotDaemon
                     }
                     $proc = new IotWorkUnit();
                     $proc->job = $task;
-                    $proc->start = time();
-                    $proc->expiry = time() + 10 * $task->duration;
+                    $proc->start = getSystemUptime();
+                    $proc->expiry = getSystemUptime() + 60 * $task->duration;
                     $proc->log = '';
                     $this->workers[$channel] = $proc;
-                    $proc->start();
+                    $proc->start($this->queue);
                 } else {
                     $proc = $this->workers[$channel];
-
                     if ($proc->isRunning()) {
-                        if ($proc->expiry < time()) {
+                        if ($proc->expiry < getSystemUptime()) {
                             $this->log(sprintf("%s: Current unit of work %s has expired and will be forcibly stopped", $channel, $proc->job->class));
                             $proc->stop();
+                            $this->log(sprintf("Got reply %s", $proc->response));
+                            $data = json_decode($proc->response);
+                            if ($data) { $this->queue[] = $data; }
                             $this->workers[$channel] = null;
                         } else {
-                            $this->log(sprintf("%s: Process %s is still running", $channel, $proc->job->class));
+                            $this->log(sprintf("%s: Process %s is still running; expiry %d", $channel, $proc->job->class, $proc->expiry));
                         }
                     } else {
-                        $this->log(sprintf("%s: Process %s has been removed", $channel, $proc->job->class));
-                        $proc = null;
-                        $this->workers[$channel] = null;
+                        if ($proc->expiry < getSystemUptime()) {
+                            $this->log(sprintf("%s: Process %s has been removed", $channel, $proc->job->class));
+                            $this->log(sprintf("Got reply %s", $proc->response));
+                            $data = json_decode($proc->response);
+                            if ($data) { $this->queue[] = $data; }
+                            $proc = null;
+                            $this->workers[$channel] = null;
+                        } else {
+                            $this->log(sprintf("%s: Process %s has stopped; cleanup scheduled for %d", $channel, $proc->job->class, $proc->expiry));
+                        }
                     }
                 }
             }
@@ -157,21 +184,23 @@ class IotDaemon
     {
         $out = array();
         $out['tasks'] = array();
-        $out['tasks'][] = IotTask::create("TestService", 1);
-        $out['tasks'][] = IotTask::create("AccessPointService", 5);
+        // Should total one hour. Yes, we will get drift but it should be minimised:
+        $out['tasks'][] = IotTask::create("TestService", 5);
+        $out['tasks'][] = IotTask::create("AccessPointService", 50);
+        $out['tasks'][] = IotTask::create("DnsTransferService", 5);
         return $out;
     }
 
     public function readConfig()
     {
         // Read config from the local system
-        if (file_exists(self::CONFIGFILE)) {
+        /*if (file_exists(self::CONFIGFILE)) {
             $data = file_get_contents(self::CONFIGFILE);
             $this->config = json_decode($data, true);
-        } else {
+        } else {*/
             $this->config = $this->getConfigDefault();
             $this->writeConfig();
-        }
+        //}
     }
 
     public function writeConfig()
