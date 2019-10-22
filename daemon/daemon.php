@@ -87,7 +87,6 @@ class IotWorkUnit
 class IotDaemon
 {
     public const CONFIGFILE = "../state/raspi-iot.json";
-    public const CONFIGDEFAULT = "daemon/raspi-iot-default.json";
     public $config = null;
     public $workers = array();
     public $queue = array();
@@ -184,9 +183,9 @@ class IotDaemon
     {
         $out = array();
         $out['tasks'] = array();
-        // Should total one hour. Yes, we will get drift but it should be minimised:
+        // Needs to be <1 hour just in case the clock is drifting wildly (does happen!)
         $out['tasks'][] = IotTask::create("TestService", 5);
-        $out['tasks'][] = IotTask::create("AccessPointService", 50);
+        $out['tasks'][] = IotTask::create("AccessPointService", 30);
         $out['tasks'][] = IotTask::create("DnsTransferService", 5);
         return $out;
     }
