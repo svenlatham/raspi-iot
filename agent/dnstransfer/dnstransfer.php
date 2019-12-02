@@ -17,6 +17,8 @@ class DnsService extends GenericService
             exit();
         }
 
+	exec("sudo systemctl network-manager restart");
+	sleep(10);
         
         for ($i = 0; $i <= 100; $i++) {
             sleep(5); // Quick breather
