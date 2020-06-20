@@ -125,6 +125,11 @@ class DnsService extends GenericService
 
     function stop()
     {
+        // Clean up any saved connections:
+        $this->log("Cleaning up obsolete connections");
+        // Safer than processing in PHP:
+        exec('/usr/bin/nmcli --pretty --fields UUID,TYPE con show | grep wifi | cut -c 1-36 | while read line; do nmcli con delete uuid  $line; done');
+        
         // Typically triggered by sigs
         $this->log("Closing down safely");
 
