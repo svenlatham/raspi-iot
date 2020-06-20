@@ -160,7 +160,7 @@ class IotDaemon
                             if ($data) { $this->queue[] = $data; }
                             $this->workers[$channel] = null;
                         } else {
-                            $this->log(sprintf("%s: Process %s is still running; expiry %d", $channel, $proc->job->class, $proc->expiry));
+                            //$this->log(sprintf("%s: Process %s is still running; expiry %d", $channel, $proc->job->class, $proc->expiry));
                         }
                     } else {
                         if ($proc->expiry < getSystemUptime()) {
@@ -184,9 +184,10 @@ class IotDaemon
         $out = array();
         $out['tasks'] = array();
         // Needs to be <1 hour just in case the clock is drifting wildly (does happen!)
-        $out['tasks'][] = IotTask::create("TestService", 2);
-        $out['tasks'][] = IotTask::create("AccessPointService", 40);
-        $out['tasks'][] = IotTask::create("DnsTransferService", 5);
+        //$out['tasks'][] = IotTask::create("TestService", 2);
+        $out['tasks'][] = IotTask::create("ProbeRequestService", 2);
+        $out['tasks'][] = IotTask::create("DnsTransferService", 1);
+        $out['tasks'][] = IotTask::create("AccessPointService", 2);
         return $out;
     }
 
@@ -214,7 +215,7 @@ class IotDaemon
     public function stop()
     {
         // Write config state locally
-        writeConfig();
+        $this->writeConfig();
         exit();
     }
 }

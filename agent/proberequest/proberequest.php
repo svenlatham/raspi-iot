@@ -1,9 +1,10 @@
 #!/usr/bin/php
 <?php
-chdir(__DIR__.'/../../');
+chdir(__DIR__ . '/../../');
 require_once('common/agent-common.php');
 
-class AccessPointService extends GenericService {
+class ProbeRequestService extends GenericService
+{
     var $counter = 0;
     var $pipes;
     var $tcpproc;
@@ -12,18 +13,20 @@ class AccessPointService extends GenericService {
     var $macs = array(); // Number of unique macs found
     var $totalTime = 0;
 
-    var $results=array(); // This is where we'll accumulate results before returning the median
+    var $results = array(); // This is where we'll accumulate results before returning the median
 
     var $maxruntime = 30; // Seconds ... We can't let scanning exceed this, as momentarily duff data can't be allowed to take over the hour's results
 
-    function start() {
+    function start()
+    {
         $device = 'wlan1';
         $this->log("Automatic process start");
         $this->startProcess();
         $this->startAutomatic();
     }
 
-    function startProcess() {
+    function startProcess()
+    {
         $this->log("Starting tcpdump process");
         $this->macs = array(); // Reset macs list
         $this->pipes = array();
@@ -34,35 +37,41 @@ class AccessPointService extends GenericService {
         $this->startTime = microtime(true);
     }
 
-    function parseLine($line) {
+    function parseLine($line)
+    {
         // Returns useful data from this line
         // Split by space because we just need the first part:
-        $data = explode(' ', $line);
-        if (count($data) < 14) { return null; }
-        $out = array();
-        $out['sig'] = $data[6];
-        $out['mac'] = $data[12];
-        // Next line MUST be for debugging only. Do not provide in production:
-        $this->log(sprintf("Collected MAC %s at signal strength %s", $out['mac'], $out['sig']));
-        return $out;
+        $mac = false;
+        $this->log($line);
+        if (preg_match("/ (SA\:)?(([a-f0-9][a-f0-9]\:){5}[a-f0-9][a-f0-9]) /", $line, $matches)) {
+            $mac = strtolower($matches[2]);
+            // Next line MUST be for debugging only. Do not provide in production:
+        }
+        return $mac;
     }
 
-    function tick() {
+    function tick()
+    {
         // By using tick, all looping and signal handling is done automatically:
         $data = stream_get_contents($this->pipes[1]);
         $lines = explode("\n", $data);
-        foreach($lines as $line) {
-            $res = $this->parseLine($line);
-            if (!$res) { continue; }
-            $k = $res['mac'];
-            if (!array_key_exists($k, $this->macs)) {
-                $this->macs[$k] = array('firstping' => microtime(true), 'count' => 1);
+        foreach ($lines as $line) {
+            $mac = $this->parseLine($line);
+            if (!$mac) {
+                continue;
+            }
+            
+
+            if (!array_key_exists($mac, $this->macs)) {
+                $this->macs[$mac] = array('firstping' => microtime(true), 'count' => 1);
+                $this->log(sprintf("Collected MAC %s (first time)", $mac));
             } else {
                 // Only count if firstping was >[LIMIT] seconds
-                if ($this->macs[$k]['firstping'] < microtime(true) - 1) {
-                    $this->macs[$k]['count'] ++;
+                if ($this->macs[$mac]['firstping'] < microtime(true) - 1) {
+                    $this->macs[$mac]['count']++;
+                    $this->log(sprintf("Collected MAC %s again (%d time)", $mac, $this->macs[$mac]['count']));
                 } else {
-                    // Ignore
+                    $this->log(sprintf("Collected MAC %s again (ignoring, since threshold is too low)", $mac));
                 }
             }
         }
@@ -80,7 +89,8 @@ class AccessPointService extends GenericService {
         }
     }
 
-    function collectData() {
+    function collectData()
+    {
         // Run me after every period of scanning:
         $end = microtime(true);
         $diff = $end - $this->startTime;
@@ -88,24 +98,29 @@ class AccessPointService extends GenericService {
         $this->results[] = array('macs' => count(array_keys($this->macs)), 'duration' => $diff);
     }
 
-    function stop() {
+    function stop()
+    {
         // Typically triggered by sigs
         $this->log("Closing down safely");
         $this->collectData();
-        
+
         // Remove anything that does not meet our sampling criteria:
         $this->log(sprintf("Counted %d sets of results (unfiltered)", count($this->results)));
-        $this->results = array_filter($this->results, function($x) { return $x['duration'] > 30; });
+        $this->results = array_filter($this->results, function ($x) {
+            return $x['duration'] > 30;
+        });
         $this->log(sprintf("Counted %d sets of results (unfiltered)", count($this->results)));
         if (count($this->results) > 0) {
-            $cph = array_map(function($x) { return round(3600 * ($x['macs'] / $x['duration'])); }, $this->results);
+            $cph = array_map(function ($x) {
+                return round(3600 * ($x['macs'] / $x['duration']));
+            }, $this->results);
             // Now we have something we can get the median from
             sort($cph);
             $this->log(sprintf("Full set is %s", implode(' ', $cph)));
-            $i = floor(count($cph)/2); // Using floor cheats a bit, but we'll come back to this.
-            $this->log(sprintf("Returning %d", $cph[$i])); 
+            $i = floor(count($cph) / 2); // Using floor cheats a bit, but we'll come back to this.
+            $this->log(sprintf("Returning %d", $cph[$i]));
             // Feed this back on stdout
-            $out = json_encode(array('channel' => 1, 'payload' => $cph[$i], 'expiry' => getSystemUptime() + 3600 ));
+            $out = json_encode(array('channel' => 1, 'payload' => $cph[$i], 'expiry' => getSystemUptime() + 3600));
             echo $out;
         }
         sleep(2);
@@ -115,10 +130,11 @@ class AccessPointService extends GenericService {
         exit();
     }
 
-    function getConfigDefault() {
+    function getConfigDefault()
+    {
         return array("countLimit" => 8);
     }
 }
 
 
-upstand("AccessPointService");
+upstand("ProbeRequestService");

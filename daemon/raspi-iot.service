@@ -3,7 +3,7 @@ Description=IOT Management
 After=network.target
 
 [Service]
-ExecStart=/usr/bin/php /home/pi/raspi-iot/src/daemon/daemon.php
+ExecStart=/usr/bin/php /home/pi/raspi-iot/daemon/daemon.php
 WorkingDirectory=/home/pi/raspi-iot/
 StandardOutput=inherit
 StandardError=inherit
